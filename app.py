@@ -12,10 +12,9 @@ from services.ffmpeg_manager import FFmpegManager
 from config import PORT, DVR_ENABLED, RECORDINGS_DIR, MAX_RECORDING_DURATION, RECORDINGS_RETENTION_DAYS
 
 # Recupera la password dalle variabili d'ambiente di Render
-# Se non la imposti nelle Settings di Render, il proxy rimarrà libero
 API_KEY_REQUIRED = os.getenv("API_KEY")
 
-# Only import DVR components if enabled
+# Import componenti DVR se abilitati
 if DVR_ENABLED:
     from services.recording_manager import RecordingManager
     from routes.recordings import setup_recording_routes
@@ -38,7 +37,6 @@ def create_app():
     @web.middleware
     async def auth_middleware(app, handler):
         async def middleware(request):
-            # Se API_KEY_REQUIRED è impostata, controlliamo la chiave nell'URL
             if API_KEY_REQUIRED:
                 user_key = request.query.get('api_key') or request.query.get('key')
                 if user_key != API_KEY_REQUIRED:
@@ -47,7 +45,6 @@ def create_app():
         return middleware
 
     app.middlewares.append(auth_middleware)
-    # ------------------------------------
 
     app['ffmpeg_manager'] = ffmpeg_manager
     app.ffmpeg_manager = ffmpeg_manager
@@ -121,4 +118,22 @@ def create_app():
         if filename.endswith('.m3u8'):
             try:
                 content = ""
-                for _ in range
+                for _ in range(3):
+                    if os.path.exists(file_path):
+                        with open(file_path, 'r', encoding='utf-8') as f:
+                            content = f.read()
+                        if content:
+                            break
+                    await asyncio.sleep(0.1)
+                
+                return web.Response(
+                    text=content,
+                    content_type='application/vnd.apple.mpegurl',
+                    headers=headers
+                )
+            except Exception as e:
+                logging.error(f"Error reading playlist {file_path}: {e}")
+                return web.Response(status=500, text="Internal Server Error")
+        
+        if filename.endswith('.ts'):
+             return web.FileResponse(file_path
