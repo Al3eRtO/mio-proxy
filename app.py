@@ -119,21 +119,4 @@ def create_app():
             try:
                 content = ""
                 for _ in range(3):
-                    if os.path.exists(file_path):
-                        with open(file_path, 'r', encoding='utf-8') as f:
-                            content = f.read()
-                        if content:
-                            break
-                    await asyncio.sleep(0.1)
-                
-                return web.Response(
-                    text=content,
-                    content_type='application/vnd.apple.mpegurl',
-                    headers=headers
-                )
-            except Exception as e:
-                logging.error(f"Error reading playlist {file_path}: {e}")
-                return web.Response(status=500, text="Internal Server Error")
-        
-        if filename.endswith('.ts'):
-             return web.FileResponse(file_path
+                    if
