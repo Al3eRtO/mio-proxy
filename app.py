@@ -24,21 +24,19 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 def create_app():
     ffmpeg_manager = FFmpegManager()
     proxy = HLSProxy(ffmpeg_manager=ffmpeg_manager)
-    app = web.Application()
     
-    # --- Auth Middleware ---
+    # --- Auth Middleware (VERSIONE CORRETTA) ---
     @web.middleware
-    async def auth_middleware(app, handler):
-        async def middleware(request):
-            # Bypass auth per favicon e static se necessario, o proteggi tutto
-            if API_KEY_REQUIRED:
-                user_key = request.query.get('api_key') or request.query.get('key')
-                if user_key != API_KEY_REQUIRED:
-                    return web.Response(status=401, text="401 Unauthorized: API Key errata o mancante")
-            return await handler(request)
-        return middleware
+    async def auth_middleware(request, handler):
+        if API_KEY_REQUIRED:
+            user_key = request.query.get('api_key') or request.query.get('key')
+            if user_key != API_KEY_REQUIRED:
+                return web.Response(status=401, text="401 Unauthorized: API Key errata o mancante")
+        return await handler(request)
 
-    app.middlewares.append(auth_middleware)
+    # Creiamo l'app includendo il middleware correttamente
+    app = web.Application(middlewares=[auth_middleware])
+    
     app['ffmpeg_manager'] = ffmpeg_manager
     app.ffmpeg_manager = ffmpeg_manager
 
@@ -59,7 +57,6 @@ def create_app():
         os.makedirs(static_p)
     app.router.add_static('/static', static_p)
     
-    # Proxy & Info Routes
     app.router.add_get('/builder', proxy.handle_builder)
     app.router.add_get('/info', proxy.handle_info_page)
     app.router.add_get('/api/info', proxy.handle_api_info)
@@ -70,18 +67,13 @@ def create_app():
     app.router.add_get('/proxy/stream', proxy.handle_proxy_request)
     app.router.add_get('/extractor', proxy.handle_extractor_request)
     app.router.add_get('/extractor/video', proxy.handle_extractor_request)
-    
-    # Segments
     app.router.add_get('/proxy/hls/segment.ts', proxy.handle_proxy_request)
     app.router.add_get('/proxy/hls/segment.m4s', proxy.handle_proxy_request)
     app.router.add_get('/proxy/hls/segment.mp4', proxy.handle_proxy_request)
-    
     app.router.add_get('/playlist', proxy.handle_playlist_request)
     app.router.add_get('/segment/{segment}', proxy.handle_ts_segment)
     app.router.add_get('/decrypt/segment.mp4', proxy.handle_decrypt_segment)
     app.router.add_get('/decrypt/segment.ts', proxy.handle_decrypt_segment)
-    
-    # DRM & Utilities
     app.router.add_get('/license', proxy.handle_license_request)
     app.router.add_post('/license', proxy.handle_license_request)
     app.router.add_post('/generate_urls', proxy.handle_generate_urls)
@@ -94,7 +86,6 @@ def create_app():
         base_dir = os.path.abspath("temp_hls")
         file_path = os.path.abspath(os.path.join(base_dir, stream_id, filename))
         
-        # Security Check
         if not file_path.startswith(base_dir):
             return web.Response(status=403, text="403 Forbidden")
 
@@ -113,7 +104,7 @@ def create_app():
         if filename.endswith('.m3u8'):
             try:
                 content = ""
-                for _ in range(5): # Retry loop
+                for _ in range(5):
                     if os.path.exists(file_path):
                         with open(file_path, 'r', encoding='utf-8') as f:
                             content = f.read()
@@ -127,7 +118,6 @@ def create_app():
 
     app.router.add_get('/ffmpeg_stream/{stream_id}/{filename}', proxy_hls_stream)
 
-    # --- DVR & Cleanup ---
     if DVR_ENABLED:
         setup_recording_routes(app, recording_manager)
     
